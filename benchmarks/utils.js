@@ -2,11 +2,17 @@
 import * as prng from 'lib0/prng.js'
 import * as metric from 'lib0/metric.js'
 import * as math from 'lib0/math.js'
+import { TestContainerRuntimeFactory, TestObjectProvider, TestFluidObjectFactory} from '@fluidframework/test-utils'
+import { LocalServerTestDriver, TinyliciousTestDriver } from '@fluidframework/test-drivers'
+import { requestFluidObject } from '@fluidframework/runtime-utils'
+import { Loader } from '@fluidframework/container-loader'
+
 
 export const N = 6000
-export const disableAutomergeBenchmarks = false
-export const disablePeersCrdtsBenchmarks = false
+export const disableAutomergeBenchmarks = true
+export const disablePeersCrdtsBenchmarks = true
 export const disableYjsBenchmarks = false
+export const disableFluidBenchmarks = false
 
 export const benchmarkResults = {}
 
@@ -18,9 +24,9 @@ export const setBenchmarkResult = (libname, benchmarkid, result) => {
 
 const perf = typeof performance === 'undefined' ? require('perf_hooks').performance : performance // eslint-disable-line no-undef
 
-export const benchmarkTime = (libname, id, f) => {
+export const benchmarkTime = async (libname, id, f) => {
   const start = perf.now()
-  f()
+  await f()
   const time = perf.now() - start
   setBenchmarkResult(libname, id, `${time.toFixed(0)} ms`)
 }
@@ -89,4 +95,51 @@ export const deltaDeleteHelper = (doc, index, length) => {
     deltas.push(doc.removeAt(index))
   }
   return deltas
+}
+
+const USE_TINYLICIOUS = false;
+let containers = [];
+
+export const cleanContainers = async () => {
+  for (const container of containers) {
+    await container.close()
+  }
+  containers = []
+}
+
+/**
+ * Initializes 2 Fluid containers
+ * @param {*} sharedObjectFactory Factory of the sharedObject you would like to instantiate
+ * @returns {Promise<Array<>>} Array containing the two sharedObjects and the OpProcessingController of the testObjectProvider
+ */
+export const getContainers = async (sharedObjectFactory) => {
+  const objectID = 'sharedObject'
+  const runtimeFactory = (_) => new TestContainerRuntimeFactory('@fluid-example/test-dataStore', new TestFluidObjectFactory([[objectID, sharedObjectFactory]]), { generateSummaries: false })
+  let testObjectProvider
+  if (USE_TINYLICIOUS) {
+    // Use Tinylicious server
+    testObjectProvider = new TestObjectProvider(Loader, new TinyliciousTestDriver(), runtimeFactory)
+  } else {
+    // Use local server
+    testObjectProvider = new TestObjectProvider(Loader, new LocalServerTestDriver(), runtimeFactory)
+  }
+  const registry = [[objectID, sharedObjectFactory]]
+  const testContainerConfig = {
+    fluidDataObjectType: 0,
+    registry,
+    generateSummaries: false
+  }
+
+  const container1 = await testObjectProvider.makeTestContainer(testContainerConfig)
+  const fluidObject = await requestFluidObject(container1, 'default')
+  const sharedObject1 = await fluidObject.getSharedObject(objectID)
+
+  const container2 = await testObjectProvider.loadTestContainer(testContainerConfig)
+  container2.deltaManager.setMaxListeners(1000)
+  const dataObject2 = await requestFluidObject(container2, 'default')
+  const sharedObject2 = await dataObject2.getSharedObject(objectID)
+  containers.push(container1, container2)
+  testObjectProvider.opProcessingController.addDeltaManagers(container1.deltaManager, container2.deltaManager)
+
+  return [sharedObject1, sharedObject2, testObjectProvider]
 }

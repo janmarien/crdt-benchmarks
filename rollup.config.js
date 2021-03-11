@@ -1,7 +1,8 @@
 import nodeResolve from 'rollup-plugin-node-resolve'
-import commonjs from 'rollup-plugin-commonjs'
+import commonjs from '@rollup/plugin-commonjs'
 import builtins from 'rollup-plugin-node-builtins'
 import globals from 'rollup-plugin-node-globals'
+import json from '@rollup/plugin-json'
 import { terser } from 'rollup-plugin-terser'
 
 const terserPlugin = terser({
@@ -44,6 +45,21 @@ export default [{
       mainFields: ['module', 'browser', 'main']
     }),
     commonjs()
+  ]
+},{
+  input: './benchmarks/bundleFluid.js',
+  output: {
+    file: './dist/bundleFluid.js',
+    format: 'es',
+    sourcemap: true
+  },
+  plugins: [
+    json(),
+    nodeResolve({
+      mainFields: ['module', 'main']
+    }),
+    commonjs(),
+    terserPlugin
   ]
 }, {
   input: './benchmarks/bundleYjs.js',
@@ -90,4 +106,5 @@ export default [{
     commonjs(),
     terserPlugin
   ]
-}]
+},
+]
