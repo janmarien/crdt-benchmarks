@@ -1,12 +1,13 @@
 
 import * as Y from 'yjs'
-import { setBenchmarkResult, gen, N, benchmarkTime, cpy, disableAutomergeBenchmarks, disableYjsBenchmarks, disablePeersCrdtsBenchmarks, logMemoryUsed, getMemUsed, deltaInsertHelper, deltaDeleteHelper } from './utils.js'
+import { setBenchmarkResult, gen, N, benchmarkTime, cpy, disableAutomergeBenchmarks, disableYjsBenchmarks, disablePeersCrdtsBenchmarks, logMemoryUsed, getMemUsed, deltaInsertHelper, deltaDeleteHelper, getContainers, disableFluidBenchmarks } from './utils.js'
 import * as prng from 'lib0/prng.js'
 import * as math from 'lib0/math.js'
 import * as t from 'lib0/testing.js'
 import Automerge from 'automerge'
 import DeltaCRDT from 'delta-crdts'
 import deltaCodec from 'delta-crdts-msgpack-codec'
+import { SharedString } from '@fluidframework/sequence'
 const DeltaRGA = DeltaCRDT('rga')
 
 const initText = prng.word(gen, 100, 100)
@@ -144,240 +145,339 @@ const benchmarkAutomerge = (id, changeDoc1, changeDoc2, check) => {
   logMemoryUsed('automerge', id, startHeapUsed)
 }
 
-{
-  const benchmarkName = '[B2.1] Concurrently insert string of length N at index 0'
-  const string1 = prng.word(gen, N, N)
-  const string2 = prng.word(gen, N, N)
-  benchmarkYjs(
-    benchmarkName,
-    doc1 => { doc1.getText('text').insert(0, string1) },
-    doc2 => { doc2.getText('text').insert(0, string2) },
-    (doc1, doc2) => {
-      t.assert(doc1.getText('text').toString() === doc2.getText('text').toString())
-      t.assert(doc1.getText('text').toString().length === N * 2 + 100)
-    }
-  )
-  benchmarkDeltaCrdts(
-    benchmarkName,
-    doc1 => deltaInsertHelper(doc1, 0, string1),
-    doc2 => deltaInsertHelper(doc2, 0, string2),
-    (doc1, doc2) => {
-      t.assert(doc1.value().join('') === doc2.value().join(''))
-      t.assert(doc1.value().join('').length === N * 2 + 100)
-    }
-  )
-  benchmarkAutomerge(
-    benchmarkName,
-    doc1 => { doc1.text.insertAt(0, ...string1) },
-    doc2 => { doc2.text.insertAt(0, ...string2) },
-    (doc1, doc2) => {
-      t.assert(doc1.text.join('') === doc2.text.join(''))
-      t.assert(doc1.text.join('').length === N * 2 + 100)
-    }
-  )
-}
+/**
+ * 
+ * @param {String} id name of the benchmark e.g. "[B1.1] Description"
+ * @param {function(SharedString):void} changeFunction1 
+ * @param {function(SharedString):void} changeFunction2 
+ * @param {function(SharedString, SharedString):void} check 
+ */
+const benchmarkFluid = async (id, changeFunction1, changeFunction2, check) => {
 
-{
-  const benchmarkName = '[B2.2] Concurrently insert N characters at random positions'
-  const genInput = () => {
-    let str = initText
-    const input = []
-    for (let i = 0; i < N; i++) {
-      const index = prng.uint32(gen, 0, str.length)
-      const insert = prng.word(gen, 1, 1)
-      str = str.slice(0, index) + insert + str.slice(index)
-      input.push({ index, insert })
-    }
-    return input
+  const startHeapUsed = getMemUsed()
+  if (disableFluidBenchmarks) {
+    setBenchmarkResult('fluid', id, 'skipping')
   }
-  const input1 = genInput()
-  const input2 = genInput()
-  benchmarkYjs(
-    benchmarkName,
-    doc1 => {
-      const ytext = doc1.getText('text')
-      input1.forEach(({ index, insert }) => { ytext.insert(index, insert) })
-    },
-    doc2 => {
-      const ytext = doc2.getText('text')
-      input2.forEach(({ index, insert }) => { ytext.insert(index, insert) })
-    },
-    (doc1, doc2) => {
-      t.assert(doc1.getText('text').toString() === doc2.getText('text').toString())
-      t.assert(doc1.getText('text').toString().length === N * 2 + 100)
-    }
-  )
-  benchmarkDeltaCrdts(
-    benchmarkName,
-    doc1 => input1.map(({ index, insert }) => deltaInsertHelper(doc1, index, insert)).flat(1),
-    doc2 => input2.map(({ index, insert }) => deltaInsertHelper(doc2, index, insert)).flat(1),
-    (doc1, doc2) => {
-      t.assert(doc1.value().join('') === doc2.value().join(''))
-      t.assert(doc1.value().join('').length === N * 2 + 100)
-    }
-  )
-  benchmarkAutomerge(
-    benchmarkName,
-    doc1 => {
-      input1.forEach(({ index, insert }) => { doc1.text.insertAt(index, ...insert) })
-    },
-    doc2 => {
-      input2.forEach(({ index, insert }) => { doc2.text.insertAt(0, ...insert) })
-    },
-    (doc1, doc2) => {
-      t.assert(doc1.text.join('') === doc2.text.join(''))
-      t.assert(doc1.text.join('').length === N * 2 + 100)
-    }
-  )
+  const containersAndOpc = await getContainers(SharedString.getFactory())
+  const object1 = containersAndOpc[0]
+  const object2 = containersAndOpc[1]
+  const testObjectProvider = containersAndOpc[2]
+  object1.insertText(0, initText)
+  await testObjectProvider.ensureSynchronized();
+  let updateSize = 0
+  let nUpdates = 0
+  object1.on("op", op => {
+    nUpdates += 1
+    updateSize += JSON.stringify(op).length
+  })
+
+  await benchmarkTime('fluid', `${id} (time)`, async () => {
+    changeFunction1(object1)
+    changeFunction2(object2)
+    await testObjectProvider.ensureSynchronized();
+  })
+  check(object1, object2)
+  setBenchmarkResult('fluid', `${id} (avgUpdateSize)`, `${math.round(updateSize / nUpdates)} bytes`)
+  const snap = object2.summarize(true, true)
+  const documentSize = snap.stats.totalBlobSize
+  setBenchmarkResult('fluid', `${id} (docSize)`, `${documentSize} bytes`)
+  logMemoryUsed('fluid', id, startHeapUsed)
 }
 
-{
-  const benchmarkName = '[B2.3] Concurrently insert N words at random positions'
-  const genInput = () => {
-    let str = initText
-    const input = []
-    for (let i = 0; i < N; i++) {
-      const index = prng.uint32(gen, 0, str.length)
-      const insert = prng.word(gen, 3, 9)
-      str = str.slice(0, index) + insert + str.slice(index)
-      input.push({ index, insert })
-    }
-    return input
+export async function runBenchmarksB2() {
+  {
+    const benchmarkName = '[B2.1] Concurrently insert string of length N at index 0'
+    const string1 = prng.word(gen, N, N)
+    const string2 = prng.word(gen, N, N)
+    benchmarkYjs(
+      benchmarkName,
+      doc1 => { doc1.getText('text').insert(0, string1) },
+      doc2 => { doc2.getText('text').insert(0, string2) },
+      (doc1, doc2) => {
+        t.assert(doc1.getText('text').toString() === doc2.getText('text').toString())
+        t.assert(doc1.getText('text').toString().length === N * 2 + 100)
+      }
+    )
+    benchmarkDeltaCrdts(
+      benchmarkName,
+      doc1 => deltaInsertHelper(doc1, 0, string1),
+      doc2 => deltaInsertHelper(doc2, 0, string2),
+      (doc1, doc2) => {
+        t.assert(doc1.value().join('') === doc2.value().join(''))
+        t.assert(doc1.value().join('').length === N * 2 + 100)
+      }
+    )
+    benchmarkAutomerge(
+      benchmarkName,
+      doc1 => { doc1.text.insertAt(0, ...string1) },
+      doc2 => { doc2.text.insertAt(0, ...string2) },
+      (doc1, doc2) => {
+        t.assert(doc1.text.join('') === doc2.text.join(''))
+        t.assert(doc1.text.join('').length === N * 2 + 100)
+      }
+    )
+    await benchmarkFluid(
+      benchmarkName,
+      sharedString1 => { sharedString1.insertText(0, string1) },
+      sharedString2 => { sharedString2.insertText(0, string2) },
+      (sharedString1, sharedString2) => {
+        t.assert(sharedString1.getText() == sharedString2.getText())
+        t.assert(sharedString2.getLength() === N * 2 + 100)
+      }
+    )
   }
-  const input1 = genInput()
-  const input2 = genInput()
-  benchmarkYjs(
-    benchmarkName,
-    doc1 => {
-      const ytext = doc1.getText('text')
-      input1.forEach(({ index, insert }) => { ytext.insert(index, insert) })
-    },
-    doc2 => {
-      const ytext = doc2.getText('text')
-      input2.forEach(({ index, insert }) => { ytext.insert(index, insert) })
-    },
-    (doc1, doc2) => {
-      t.assert(doc1.getText('text').toString() === doc2.getText('text').toString())
-    }
-  )
-  benchmarkDeltaCrdts(
-    benchmarkName,
-    doc1 => input1.map(({ index, insert }) => deltaInsertHelper(doc1, index, insert)).flat(1),
-    doc2 => input2.map(({ index, insert }) => deltaInsertHelper(doc2, index, insert)).flat(1),
-    (doc1, doc2) => {
-      t.assert(doc1.value().join('') === doc2.value().join(''))
-    }
-  )
-  benchmarkAutomerge(
-    benchmarkName,
-    doc1 => {
-      input1.forEach(({ index, insert }) => { doc1.text.insertAt(index, ...insert) })
-    },
-    doc2 => {
-      input2.forEach(({ index, insert }) => { doc2.text.insertAt(0, ...insert) })
-    },
-    (doc1, doc2) => {
-      t.assert(doc1.text.join('') === doc2.text.join(''))
-    }
-  )
-}
 
-{
-  const benchmarkName = '[B2.4] Concurrently insert & delete'
-  const genInput = () => {
-    let str = initText
-    const input = []
-    for (let i = 0; i < N; i++) {
-      const index = prng.uint32(gen, 0, str.length)
-      const insert = prng.word(gen, 3, 9)
-      str = str.slice(0, index) + insert + str.slice(index)
-      input.push({ index, insert })
-      if (str.length === index || prng.bool(gen)) {
-        const insert = prng.word(gen, 2, 10)
+  {
+    const benchmarkName = '[B2.2] Concurrently insert N characters at random positions'
+    const genInput = () => {
+      let str = initText
+      const input = []
+      for (let i = 0; i < N; i++) {
+        const index = prng.uint32(gen, 0, str.length)
+        const insert = prng.word(gen, 1, 1)
         str = str.slice(0, index) + insert + str.slice(index)
         input.push({ index, insert })
-      } else {
-        const deleteCount = prng.uint32(gen, 1, math.min(9, str.length - index))
-        str = str.slice(0, index) + str.slice(index + deleteCount)
-        input.push({ index, deleteCount })
       }
+      return input
     }
-    return input
+    const input1 = genInput()
+    const input2 = genInput()
+    benchmarkYjs(
+      benchmarkName,
+      doc1 => {
+        const ytext = doc1.getText('text')
+        input1.forEach(({ index, insert }) => { ytext.insert(index, insert) })
+      },
+      doc2 => {
+        const ytext = doc2.getText('text')
+        input2.forEach(({ index, insert }) => { ytext.insert(index, insert) })
+      },
+      (doc1, doc2) => {
+        t.assert(doc1.getText('text').toString() === doc2.getText('text').toString())
+        t.assert(doc1.getText('text').toString().length === N * 2 + 100)
+      }
+    )
+    benchmarkDeltaCrdts(
+      benchmarkName,
+      doc1 => input1.map(({ index, insert }) => deltaInsertHelper(doc1, index, insert)).flat(1),
+      doc2 => input2.map(({ index, insert }) => deltaInsertHelper(doc2, index, insert)).flat(1),
+      (doc1, doc2) => {
+        t.assert(doc1.value().join('') === doc2.value().join(''))
+        t.assert(doc1.value().join('').length === N * 2 + 100)
+      }
+    )
+    benchmarkAutomerge(
+      benchmarkName,
+      doc1 => {
+        input1.forEach(({ index, insert }) => { doc1.text.insertAt(index, ...insert) })
+      },
+      doc2 => {
+        input2.forEach(({ index, insert }) => { doc2.text.insertAt(0, ...insert) })
+      },
+      (doc1, doc2) => {
+        t.assert(doc1.text.join('') === doc2.text.join(''))
+        t.assert(doc1.text.join('').length === N * 2 + 100)
+      }
+    )
+    await benchmarkFluid(
+      benchmarkName,
+      sharedString1 => {
+        input1.forEach(({ index, insert }) => { sharedString1.insertText(index, insert) })
+      },
+      sharedString2 => {
+        input2.forEach(({ index, insert }) => { sharedString2.insertText(0, insert) })
+      },
+      (sharedString1, sharedString2) => {
+        t.assert(sharedString1.getText() == sharedString2.getText())
+        t.assert(sharedString2.getLength() === N * 2 + 100)
+      }
+    )
   }
-  const input1 = genInput()
-  const input2 = genInput()
-  benchmarkYjs(
-    benchmarkName,
-    doc1 => {
-      const ytext = doc1.getText('text')
-      input1.forEach(({ index, insert, deleteCount }) => {
-        if (insert !== undefined) {
-          ytext.insert(index, insert)
-        } else {
-          ytext.delete(index, deleteCount)
-        }
-      })
-    },
-    doc2 => {
-      const ytext = doc2.getText('text')
-      input2.forEach(({ index, insert, deleteCount }) => {
-        if (insert !== undefined) {
-          ytext.insert(index, insert)
-        } else {
-          ytext.delete(index, deleteCount)
-        }
-      })
-    },
-    (doc1, doc2) => {
-      t.assert(doc1.getText('text').toString() === doc2.getText('text').toString())
-    }
-  )
-  benchmarkDeltaCrdts(
-    benchmarkName,
-    doc1 => input1.map(({ index, insert, deleteCount }) => {
-      if (insert !== undefined) {
-        return deltaInsertHelper(doc1, index, insert).flat(1)
-      } else if (deleteCount !== undefined) {
-        return deltaDeleteHelper(doc1, index, deleteCount).flat(1)
-      } else {
-        throw new Error('unexpected delete type')
+
+  {
+    const benchmarkName = '[B2.3] Concurrently insert N words at random positions'
+    const genInput = () => {
+      let str = initText
+      const input = []
+      for (let i = 0; i < N; i++) {
+        const index = prng.uint32(gen, 0, str.length)
+        const insert = prng.word(gen, 3, 9)
+        str = str.slice(0, index) + insert + str.slice(index)
+        input.push({ index, insert })
       }
-    }),
-    doc2 => input2.map(({ index, insert, deleteCount }) => {
-      if (insert !== undefined) {
-        return deltaInsertHelper(doc2, index, insert).flat(1)
-      } else if (deleteCount !== undefined) {
-        return deltaDeleteHelper(doc2, index, deleteCount).flat(1)
-      } else {
-        throw new Error('unexpected delete type')
+      return input
+    }
+    const input1 = genInput()
+    const input2 = genInput()
+    benchmarkYjs(
+      benchmarkName,
+      doc1 => {
+        const ytext = doc1.getText('text')
+        input1.forEach(({ index, insert }) => { ytext.insert(index, insert) })
+      },
+      doc2 => {
+        const ytext = doc2.getText('text')
+        input2.forEach(({ index, insert }) => { ytext.insert(index, insert) })
+      },
+      (doc1, doc2) => {
+        t.assert(doc1.getText('text').toString() === doc2.getText('text').toString())
       }
-    }),
-    (doc1, doc2) => {
-      t.assert(doc1.value().join('') === doc2.value().join(''))
-    }
-  )
-  benchmarkAutomerge(
-    benchmarkName,
-    doc1 => {
-      input1.forEach(({ index, insert, deleteCount }) => {
-        if (insert !== undefined) {
-          doc1.text.insertAt(index, ...insert)
+    )
+    benchmarkDeltaCrdts(
+      benchmarkName,
+      doc1 => input1.map(({ index, insert }) => deltaInsertHelper(doc1, index, insert)).flat(1),
+      doc2 => input2.map(({ index, insert }) => deltaInsertHelper(doc2, index, insert)).flat(1),
+      (doc1, doc2) => {
+        t.assert(doc1.value().join('') === doc2.value().join(''))
+      }
+    )
+    benchmarkAutomerge(
+      benchmarkName,
+      doc1 => {
+        input1.forEach(({ index, insert }) => { doc1.text.insertAt(index, ...insert) })
+      },
+      doc2 => {
+        input2.forEach(({ index, insert }) => { doc2.text.insertAt(0, ...insert) })
+      },
+      (doc1, doc2) => {
+        t.assert(doc1.text.join('') === doc2.text.join(''))
+      }
+    )
+    await benchmarkFluid(
+      benchmarkName,
+      sharedString1 => {
+        input1.forEach(({ index, insert }) => { sharedString1.insertText(index, insert) })
+      },
+      sharedString2 => {
+        input2.forEach(({ index, insert }) => { sharedString2.insertText(0, insert) })
+      },
+      (sharedString1, sharedString2) => {
+        t.assert(sharedString1.getText() == sharedString2.getText())
+      }
+    )
+  }
+
+  {
+    const benchmarkName = '[B2.4] Concurrently insert & delete'
+    const genInput = () => {
+      let str = initText
+      const input = []
+      for (let i = 0; i < N; i++) {
+        const index = prng.uint32(gen, 0, str.length)
+        const insert = prng.word(gen, 3, 9)
+        str = str.slice(0, index) + insert + str.slice(index)
+        input.push({ index, insert })
+        if (str.length === index || prng.bool(gen)) {
+          const insert = prng.word(gen, 2, 10)
+          str = str.slice(0, index) + insert + str.slice(index)
+          input.push({ index, insert })
         } else {
-          doc1.text.deleteAt(index, deleteCount)
+          const deleteCount = prng.uint32(gen, 1, math.min(9, str.length - index))
+          str = str.slice(0, index) + str.slice(index + deleteCount)
+          input.push({ index, deleteCount })
         }
-      })
-    },
-    doc2 => {
-      input2.forEach(({ index, insert, deleteCount }) => {
-        if (insert !== undefined) {
-          doc2.text.insertAt(index, ...insert)
-        } else {
-          doc2.text.deleteAt(index, deleteCount)
-        }
-      })
-    },
-    (doc1, doc2) => {
-      t.assert(doc1.text.join('') === doc2.text.join(''))
+      }
+      return input
     }
-  )
+    const input1 = genInput()
+    const input2 = genInput()
+    benchmarkYjs(
+      benchmarkName,
+      doc1 => {
+        const ytext = doc1.getText('text')
+        input1.forEach(({ index, insert, deleteCount }) => {
+          if (insert !== undefined) {
+            ytext.insert(index, insert)
+          } else {
+            ytext.delete(index, deleteCount)
+          }
+        })
+      },
+      doc2 => {
+        const ytext = doc2.getText('text')
+        input2.forEach(({ index, insert, deleteCount }) => {
+          if (insert !== undefined) {
+            ytext.insert(index, insert)
+          } else {
+            ytext.delete(index, deleteCount)
+          }
+        })
+      },
+      (doc1, doc2) => {
+        t.assert(doc1.getText('text').toString() === doc2.getText('text').toString())
+      }
+    )
+    benchmarkDeltaCrdts(
+      benchmarkName,
+      doc1 => input1.map(({ index, insert, deleteCount }) => {
+        if (insert !== undefined) {
+          return deltaInsertHelper(doc1, index, insert).flat(1)
+        } else if (deleteCount !== undefined) {
+          return deltaDeleteHelper(doc1, index, deleteCount).flat(1)
+        } else {
+          throw new Error('unexpected delete type')
+        }
+      }),
+      doc2 => input2.map(({ index, insert, deleteCount }) => {
+        if (insert !== undefined) {
+          return deltaInsertHelper(doc2, index, insert).flat(1)
+        } else if (deleteCount !== undefined) {
+          return deltaDeleteHelper(doc2, index, deleteCount).flat(1)
+        } else {
+          throw new Error('unexpected delete type')
+        }
+      }),
+      (doc1, doc2) => {
+        t.assert(doc1.value().join('') === doc2.value().join(''))
+      }
+    )
+    benchmarkAutomerge(
+      benchmarkName,
+      doc1 => {
+        input1.forEach(({ index, insert, deleteCount }) => {
+          if (insert !== undefined) {
+            doc1.text.insertAt(index, ...insert)
+          } else {
+            doc1.text.deleteAt(index, deleteCount)
+          }
+        })
+      },
+      doc2 => {
+        input2.forEach(({ index, insert, deleteCount }) => {
+          if (insert !== undefined) {
+            doc2.text.insertAt(index, ...insert)
+          } else {
+            doc2.text.deleteAt(index, deleteCount)
+          }
+        })
+      },
+      (doc1, doc2) => {
+        t.assert(doc1.text.join('') === doc2.text.join(''))
+      }
+    )
+    await benchmarkFluid(
+      benchmarkName,
+      sharedString1 => {
+        input1.forEach(({ index, insert, deleteCount }) => {
+          if (insert !== undefined) {
+            sharedString1.insertText(index, insert)
+          } else {
+            sharedString1.removeText(index, index + deleteCount)
+          }
+        })
+      },
+      sharedString2 => {
+        input1.forEach(({ index, insert, deleteCount }) => {
+          if (insert !== undefined) {
+            sharedString2.insertText(index, insert)
+          } else {
+            sharedString2.removeText(index, index + deleteCount)
+          }
+        })
+      },
+      (sharedString1, sharedString2) => {
+        t.assert(sharedString1.getText() == sharedString2.getText())
+      }
+    )
+  }
 }
