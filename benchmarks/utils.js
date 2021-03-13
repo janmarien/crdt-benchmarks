@@ -6,7 +6,7 @@ import { TestContainerRuntimeFactory, TestObjectProvider, TestFluidObjectFactory
 import { LocalServerTestDriver, TinyliciousTestDriver } from '@fluidframework/test-drivers'
 import { requestFluidObject } from '@fluidframework/runtime-utils'
 import { Container, Loader, waitContainerToCatchUp } from '@fluidframework/container-loader'
-import { TelemetryNullLogger } from '@fluidframework/shared-object-base/node_modules/@fluidframework/common-utils'
+import { TelemetryNullLogger } from '@fluidframework/common-utils'
 
 
 export const N = 6000
