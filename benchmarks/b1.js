@@ -1,6 +1,6 @@
 
 import * as Y from 'yjs'
-import { setBenchmarkResult, gen, N, benchmarkTime, disableAutomergeBenchmarks, disablePeersCrdtsBenchmarks, disableYjsBenchmarks, disableFluidBenchmarks, logMemoryUsed, getMemUsed, deltaDeleteHelper, deltaInsertHelper, getContainers } from './utils.js'
+import { setBenchmarkResult, gen, N, benchmarkTime, disableAutomergeBenchmarks, disablePeersCrdtsBenchmarks, disableYjsBenchmarks, disableFluidBenchmarks, logMemoryUsed, getMemUsed, deltaDeleteHelper, deltaInsertHelper, getContainers, calculateContainerSize } from './utils.js'
 import * as prng from 'lib0/prng.js'
 import * as math from 'lib0/math.js'
 import * as t from 'lib0/testing.js'
@@ -168,10 +168,10 @@ const benchmarkFluid = async (id, inputData, changeFunction, check, objectFactor
   })
   check(object1, object2)
   setBenchmarkResult('fluid', `${id} (avgUpdateSize)`, `${math.round(updateSize / nUpdates)} bytes`)
-  const snap = object2.summarize(true, true)
-  const documentSize = snap.stats.totalBlobSize
-  setBenchmarkResult('fluid', `${id} (docSize)`, `${documentSize} bytes`)
+  const docSize = await calculateContainerSize(object1.runtime.dataStoreContext._containerRuntime)
+  setBenchmarkResult('fluid', `${id} (docSize)`, `${docSize} bytes`)
   logMemoryUsed('fluid', id, startHeapUsed)
+  testObjectProvider.reset()
 }
 
 export async function runBenchmarks() {

@@ -2,13 +2,15 @@
 import * as prng from 'lib0/prng.js'
 import * as metric from 'lib0/metric.js'
 import * as math from 'lib0/math.js'
-import { TestContainerRuntimeFactory, TestObjectProvider, TestFluidObjectFactory} from '@fluidframework/test-utils'
+import { TestContainerRuntimeFactory, TestObjectProvider, TestFluidObjectFactory, createAndAttachContainer} from '@fluidframework/test-utils'
 import { LocalServerTestDriver, TinyliciousTestDriver } from '@fluidframework/test-drivers'
 import { requestFluidObject } from '@fluidframework/runtime-utils'
-import { Loader } from '@fluidframework/container-loader'
+import { Container, Loader, waitContainerToCatchUp } from '@fluidframework/container-loader'
+import { TelemetryNullLogger } from '@fluidframework/shared-object-base/node_modules/@fluidframework/common-utils'
 
 
 export const N = 6000
+export const sqrtN = math.floor(Math.sqrt(N)) * 20
 export const disableAutomergeBenchmarks = true
 export const disablePeersCrdtsBenchmarks = true
 export const disableYjsBenchmarks = false
@@ -142,4 +144,68 @@ export const getContainers = async (sharedObjectFactory) => {
   testObjectProvider.opProcessingController.addDeltaManagers(container1.deltaManager, container2.deltaManager)
 
   return [sharedObject1, sharedObject2, testObjectProvider]
+}
+
+/**
+ * 
+ * @param {*} sharedObjectFactory 
+ * @returns {Promise<Array>}
+ */
+export const getNContainers = async (sharedObjectFactory) => {
+  const objectID = 'sharedObject'
+  const runtimeFactory = (_) => new TestContainerRuntimeFactory('@fluid-example/test-dataStore', new TestFluidObjectFactory([[objectID, sharedObjectFactory]]), { generateSummaries: false})
+  let testObjectProvider
+  if (USE_TINYLICIOUS) {
+    testObjectProvider = new TestObjectProvider(Loader, new TinyliciousTestDriver(), runtimeFactory)
+  } else {
+    testObjectProvider = new TestObjectProvider(Loader, new LocalServerTestDriver(), runtimeFactory)
+  }
+  const registry = [[objectID, sharedObjectFactory]]
+  const testContainerConfig = {
+    fluidDataObjectType: 0,
+    registry,
+    generateSummaries: false
+  }
+  const defaultCodeDetails = {
+    package: 'defaultTestPackage',
+    config: testContainerConfig
+  }
+  const objects = []
+
+  const loader1 = await testObjectProvider.makeTestLoader(testContainerConfig)
+  const container1 = await createAndAttachContainer(defaultCodeDetails, loader1, testObjectProvider.driver.createCreateNewRequest(testObjectProvider.documentId))
+  container1.deltaManager.setMaxListeners(10000)
+  const fluidObject = await requestFluidObject(container1, 'default')
+  const sharedObject1 = await fluidObject.getSharedObject(objectID)
+  container1.deltaManager.setMaxListeners(100000)
+  objects.push(sharedObject1)
+  for (let i = 0; i < sqrtN; i++) {
+    const loader2 = await testObjectProvider.makeTestLoader(testContainerConfig)
+    const url = await testObjectProvider.driver.createContainerUrl(testObjectProvider.documentId) 
+    const container2 = await loader2.resolve({ url: url})
+    container2.deltaManager.setMaxListeners(10000)
+    await waitContainerToCatchUp(container2)
+    testObjectProvider.opProcessingController.addDeltaManagers(container2.deltaManager)
+    const dataObject2 = await requestFluidObject(container2, 'default')
+    const sharedObject2 = await dataObject2.getSharedObject(objectID)
+    container2.deltaManager.setMaxListeners(10000)
+    objects.push(sharedObject2)
+  }
+  return [objects, testObjectProvider]
+}
+
+/**
+ * 
+ * @param {*} containerRuntime 
+ * @returns Size of the summarized container
+ */
+export const calculateContainerSize = async (containerRuntime) => {
+  containerRuntime.summarizerNode.startSummary(0, new TelemetryNullLogger())
+  const summary = await containerRuntime.summarize({
+    runGC: true,
+    fullTree: true,
+    trackState: false,
+    summaryLogger: new TelemetryNullLogger()
+  })
+  return JSON.stringify(summary).length
 }

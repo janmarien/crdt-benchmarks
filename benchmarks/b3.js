@@ -1,14 +1,15 @@
 
 import * as Y from 'yjs'
-import { setBenchmarkResult, benchmarkTime, N, disableAutomergeBenchmarks, disableYjsBenchmarks, disablePeersCrdtsBenchmarks, logMemoryUsed, getMemUsed } from './utils.js'
+import { setBenchmarkResult, benchmarkTime, N, disableAutomergeBenchmarks, disableYjsBenchmarks, disablePeersCrdtsBenchmarks, logMemoryUsed, getMemUsed, disableFluidBenchmarks, getNContainers, sqrtN } from './utils.js'
 import * as t from 'lib0/testing.js'
 import * as math from 'lib0/math.js'
-import Automerge from 'automerge'
+import Automerge, { change } from 'automerge'
 import DeltaCRDT from 'delta-crdts'
 import deltaCodec from 'delta-crdts-msgpack-codec'
+import { SharedObjectSequence } from '@fluidframework/sequence'
+import { SharedMap } from '@fluidframework/map'
 const DeltaRGA = DeltaCRDT('rga')
 
-const sqrtN = math.floor(Math.sqrt(N)) * 20
 console.log('sqrtN =', sqrtN)
 
 const benchmarkYjs = (id, changeDoc, check) => {
@@ -140,125 +141,208 @@ const benchmarkAutomerge = (id, init, changeDoc, check) => {
   })
 }
 
-{
-  const benchmarkName = '[B3.1] 20√N clients concurrently set number in Map'
-  benchmarkYjs(
-    benchmarkName,
-    (doc, i) => doc.getMap('map').set('v', i),
-    docs => {
-      const v = docs[0].getMap('map').get('v')
-      docs.forEach(doc => {
-        t.assert(doc.getMap('map').get('v') === v)
-      })
-    }
-  )
-  benchmarkAutomerge(
-    benchmarkName,
-    doc => {},
-    (doc, i) => { doc.v = i },
-    docs => {
-      const v = docs[0].v
-      docs.forEach(doc => {
-        t.assert(doc.v === v)
-      })
-    }
-  )
+
+const benchmarkFluid = async (id, changeFunction, check, objectFactory) => {
+
+  const startHeapUsed = getMemUsed()
+  if (disableFluidBenchmarks) {
+    setBenchmarkResult('fluid', id, 'skipping')
+  }
+  const containersAndOpc = await getNContainers(objectFactory)
+  const objects = containersAndOpc[0]
+  const testObjectProvider = containersAndOpc[1]
+
+  let updateSize = 0
+  let nUpdates = 0
+  objects[1].on("op", op => {
+    nUpdates += 1
+    updateSize += JSON.stringify(op).length
+  })
+
+  await benchmarkTime('fluid', `${id} (time)`, async () => {
+    objects.forEach((object, i) => {
+      changeFunction(object, i)
+    });
+    await testObjectProvider.ensureSynchronized();
+  })
+  check(objects.slice(0, 2))
+  setBenchmarkResult('fluid', `${id} (avgUpdateSize)`, `${math.round(updateSize / nUpdates)} bytes`)
+  const snap = objects[1].summarize(true, true)
+  const documentSize = snap.stats.totalBlobSize
+  setBenchmarkResult('fluid', `${id} (docSize)`, `${documentSize} bytes`)
+  logMemoryUsed('fluid', id, startHeapUsed)
+  testObjectProvider.reset()
 }
 
-{
-  const benchmarkName = '[B3.2] 20√N clients concurrently set Object in Map'
-  // each client sets a user data object { name: id, address: 'here' }
-  benchmarkYjs(
-    benchmarkName,
-    (doc, i) => {
-      const v = new Y.Map()
-      v.set('name', i.toString())
-      v.set('address', 'here')
-      doc.getMap('map').set('v', v)
-    },
-    docs => {
-      const v = docs[0].getMap('map').get('v').get('name')
-      docs.forEach(doc => {
-        t.assert(doc.getMap('map').get('v').get('name') === v)
-      })
-    }
-  )
-  benchmarkAutomerge(
-    benchmarkName,
-    doc => {},
-    (doc, i) => { doc.v = { name: i.toString(), address: 'here' } },
-    docs => {
-      const v = docs[0].v.name
-      docs.forEach(doc => {
-        t.assert(doc.v.name === v)
-      })
-    }
-  )
-}
 
-{
-  const benchmarkName = '[B3.3] 20√N clients concurrently set String in Map'
-  benchmarkYjs(
-    benchmarkName,
-    (doc, i) => {
-      doc.getMap('map').set('v', i.toString().repeat(sqrtN))
-    },
-    docs => {
-      const v = docs[0].getMap('map').get('v')
-      docs.forEach(doc => {
-        t.assert(doc.getMap('map').get('v') === v)
-      })
-    }
-  )
-  benchmarkAutomerge(
-    benchmarkName,
-    doc => {},
-    (doc, i) => { doc.v = i.toString().repeat(sqrtN) },
-    docs => {
-      const v = docs[0].v
-      docs.forEach(doc => {
-        t.assert(doc.v === v)
-      })
-    }
-  )
-}
+export async function runBenchmarksB3() {
+  {
+    const benchmarkName = '[B3.1] 20√N clients concurrently set number in Map'
+    benchmarkYjs(
+      benchmarkName,
+      (doc, i) => doc.getMap('map').set('v', i),
+      docs => {
+        const v = docs[0].getMap('map').get('v')
+        docs.forEach(doc => {
+          t.assert(doc.getMap('map').get('v') === v)
+        })
+      }
+    )
+    benchmarkAutomerge(
+      benchmarkName,
+      doc => { },
+      (doc, i) => { doc.v = i },
+      docs => {
+        const v = docs[0].v
+        docs.forEach(doc => {
+          t.assert(doc.v === v)
+        })
+      }
+    )
+    await benchmarkFluid(
+      benchmarkName,
+      (map, i) => { map.set('v', i) },
+      maps => {
+        const v = maps[0].get('v')
+        maps.forEach(map => {
+          t.assert(map.get('v') === v)
+        });
+      },
+      SharedMap.getFactory()
+    )
+  }
 
-{
-  const benchmarkName = '[B3.4] 20√N clients concurrently insert text in Array'
-  benchmarkYjs(
-    benchmarkName,
-    (doc, i) => {
-      doc.getArray('array').insert(0, [i.toString()])
-    },
-    docs => {
-      const len = docs[0].getArray('array').length
-      docs.forEach(doc => {
-        t.assert(doc.getArray('array').length === len)
-      })
-    }
-  )
-  benchmarkDeltaCrdts(
-    benchmarkName,
-    (doc, i) => {
-      return [doc.insertAt(0, i.toString())]
-    },
-    docs => {
-      const len = docs[0].value().length
-      docs.forEach(doc => {
-        t.assert(doc.value().length === len)
-      })
-      t.assert(len === sqrtN)
-    }
-  )
-  benchmarkAutomerge(
-    benchmarkName,
-    doc => { doc.array = [] },
-    (doc, i) => { doc.array.insertAt(0, i.toString()) },
-    docs => {
-      const len = docs[0].array.length
-      docs.forEach(doc => {
-        t.assert(doc.array.length === len)
-      })
-    }
-  )
+  {
+    const benchmarkName = '[B3.2] 20√N clients concurrently set Object in Map'
+    // each client sets a user data object { name: id, address: 'here' }
+    benchmarkYjs(
+      benchmarkName,
+      (doc, i) => {
+        const v = new Y.Map()
+        v.set('name', i.toString())
+        v.set('address', 'here')
+        doc.getMap('map').set('v', v)
+      },
+      docs => {
+        const v = docs[0].getMap('map').get('v').get('name')
+        docs.forEach(doc => {
+          t.assert(doc.getMap('map').get('v').get('name') === v)
+        })
+      }
+    )
+    benchmarkAutomerge(
+      benchmarkName,
+      doc => { },
+      (doc, i) => { doc.v = { name: i.toString(), address: 'here' } },
+      docs => {
+        const v = docs[0].v.name
+        docs.forEach(doc => {
+          t.assert(doc.v.name === v)
+        })
+      }
+    )
+    await benchmarkFluid(
+      benchmarkName,
+      (map, i) => {
+        const v = { 'name': i.toString(), 'address': 'here' }
+        map.set('v', v)
+      },
+      maps => {
+        const v = maps[0].get('v').name
+        maps.forEach(map => {
+          t.assert(map.get('v').name === v)
+        })
+      },
+      SharedMap.getFactory()
+    )
+  }
+
+  {
+    const benchmarkName = '[B3.3] 20√N clients concurrently set String in Map'
+    benchmarkYjs(
+      benchmarkName,
+      (doc, i) => {
+        doc.getMap('map').set('v', i.toString().repeat(sqrtN))
+      },
+      docs => {
+        const v = docs[0].getMap('map').get('v')
+        docs.forEach(doc => {
+          t.assert(doc.getMap('map').get('v') === v)
+        })
+      }
+    )
+    benchmarkAutomerge(
+      benchmarkName,
+      doc => { },
+      (doc, i) => { doc.v = i.toString().repeat(sqrtN) },
+      docs => {
+        const v = docs[0].v
+        docs.forEach(doc => {
+          t.assert(doc.v === v)
+        })
+      }
+    )
+    await benchmarkFluid(
+      benchmarkName,
+      (map, i) => { map.set('v', i.toString().repeat(sqrtN)) },
+      maps => {
+        const v = maps[0].get('v')
+        maps.forEach(map => {
+          t.assert(map.get('v') === v)
+        })
+      },
+      SharedMap.getFactory()
+    )
+  }
+
+  {
+    const benchmarkName = '[B3.4] 20√N clients concurrently insert text in Array'
+    benchmarkYjs(
+      benchmarkName,
+      (doc, i) => {
+        doc.getArray('array').insert(0, [i.toString()])
+      },
+      docs => {
+        const len = docs[0].getArray('array').length
+        docs.forEach(doc => {
+          t.assert(doc.getArray('array').length === len)
+        })
+      }
+    )
+    benchmarkDeltaCrdts(
+      benchmarkName,
+      (doc, i) => {
+        return [doc.insertAt(0, i.toString())]
+      },
+      docs => {
+        const len = docs[0].value().length
+        docs.forEach(doc => {
+          t.assert(doc.value().length === len)
+        })
+        t.assert(len === sqrtN)
+      }
+    )
+    benchmarkAutomerge(
+      benchmarkName,
+      doc => { doc.array = [] },
+      (doc, i) => { doc.array.insertAt(0, i.toString()) },
+      docs => {
+        const len = docs[0].array.length
+        docs.forEach(doc => {
+          t.assert(doc.array.length === len)
+        })
+      }
+    )
+    await benchmarkFluid(
+      benchmarkName,
+      (array, i) => { array.insert(0, [i.toString()]) },
+      arrays => {
+        const len = arrays[0].length
+        arrays.forEach(array => {
+          t.assert(array.length === len)
+        })
+      },
+      SharedObjectSequence.getFactory()
+    )
+  }
 }
