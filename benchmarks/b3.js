@@ -1,6 +1,6 @@
 
 import * as Y from 'yjs'
-import { setBenchmarkResult, benchmarkTime, N, disableAutomergeBenchmarks, disableYjsBenchmarks, disablePeersCrdtsBenchmarks, logMemoryUsed, getMemUsed, disableFluidBenchmarks, getNContainers, sqrtN } from './utils.js'
+import { setBenchmarkResult, benchmarkTime, N, disableAutomergeBenchmarks, disableYjsBenchmarks, disablePeersCrdtsBenchmarks, logMemoryUsed, getMemUsed, disableFluidBenchmarks, getNContainers, multiN } from './utils.js'
 import * as t from 'lib0/testing.js'
 import * as math from 'lib0/math.js'
 import Automerge, { change } from 'automerge'
@@ -10,7 +10,7 @@ import { SharedObjectSequence } from '@fluidframework/sequence'
 import { SharedMap } from '@fluidframework/map'
 const DeltaRGA = DeltaCRDT('rga')
 
-console.log('sqrtN =', sqrtN)
+console.log('# Clients =', multiN)
 
 const benchmarkYjs = (id, changeDoc, check) => {
   const startHeapUsed = getMemUsed()
@@ -22,7 +22,7 @@ const benchmarkYjs = (id, changeDoc, check) => {
 
   const docs = []
   const updates = []
-  for (let i = 0; i < sqrtN; i++) {
+  for (let i = 0; i < multiN; i++) {
     const doc = new Y.Doc()
     doc.on('updateV2', (update, origin) => {
       if (origin !== 'remote') {
@@ -43,7 +43,7 @@ const benchmarkYjs = (id, changeDoc, check) => {
       Y.applyUpdateV2(docs[1], updates[i], 'remote')
     }
   })
-  t.assert(updates.length === sqrtN)
+  t.assert(updates.length === multiN)
   check(docs.slice(0, 2))
   setBenchmarkResult('yjs', `${id} (updateSize)`, `${updates.reduce((len, update) => len + update.byteLength, 0)} bytes`)
   const encodedState = Y.encodeStateAsUpdateV2(docs[0])
@@ -66,7 +66,7 @@ const benchmarkDeltaCrdts = (id, changeDoc, check) => {
 
   const docs = []
   const updates = []
-  for (let i = 0; i < sqrtN; i++) {
+  for (let i = 0; i < multiN; i++) {
     docs.push(DeltaRGA(i + ''))
   }
 
@@ -83,7 +83,7 @@ const benchmarkDeltaCrdts = (id, changeDoc, check) => {
     })
   })
 
-  t.assert(updates.length >= sqrtN)
+  t.assert(updates.length >= multiN)
   check(docs.slice(0, 2))
   setBenchmarkResult('delta-crdts', `${id} (updateSize)`, `${updates.reduce((len, update) => len + update.byteLength, 0)} bytes`)
   const encodedState = deltaCodec.encode(docs[0].state())
@@ -105,7 +105,7 @@ const benchmarkAutomerge = (id, init, changeDoc, check) => {
     return
   }
   const docs = []
-  for (let i = 0; i < sqrtN; i++) {
+  for (let i = 0; i < multiN; i++) {
     docs.push(Automerge.init())
   }
   const initDoc = Automerge.change(docs[0], init)
@@ -142,8 +142,11 @@ const benchmarkAutomerge = (id, init, changeDoc, check) => {
 }
 
 
-const benchmarkFluid = async (id, changeFunction, check, objectFactory) => {
-
+const benchmarkFluid = async (id, changeFunction, check, objectFactory, disable = false) => {
+  if (disable) {
+    setBenchmarkResult('fluid', id, 'skipping')
+    return
+  }
   const startHeapUsed = getMemUsed()
   if (disableFluidBenchmarks) {
     setBenchmarkResult('fluid', id, 'skipping')
@@ -177,7 +180,7 @@ const benchmarkFluid = async (id, changeFunction, check, objectFactory) => {
 
 export async function runBenchmarksB3() {
   {
-    const benchmarkName = '[B3.1] 20√N clients concurrently set number in Map'
+    const benchmarkName = `[B3.1] ${multiN} clients concurrently set number in Map`
     benchmarkYjs(
       benchmarkName,
       (doc, i) => doc.getMap('map').set('v', i),
@@ -208,12 +211,12 @@ export async function runBenchmarksB3() {
           t.assert(map.get('v') === v)
         });
       },
-      SharedMap.getFactory()
+      SharedMap.getFactory(),
     )
   }
 
   {
-    const benchmarkName = '[B3.2] 20√N clients concurrently set Object in Map'
+    const benchmarkName = `[B3.2] ${multiN} clients concurrently set Object in Map`
     // each client sets a user data object { name: id, address: 'here' }
     benchmarkYjs(
       benchmarkName,
@@ -253,16 +256,16 @@ export async function runBenchmarksB3() {
           t.assert(map.get('v').name === v)
         })
       },
-      SharedMap.getFactory()
+      SharedMap.getFactory(),
     )
   }
 
   {
-    const benchmarkName = '[B3.3] 20√N clients concurrently set String in Map'
+    const benchmarkName = `[B3.3] ${multiN} clients concurrently set String in Map`
     benchmarkYjs(
       benchmarkName,
       (doc, i) => {
-        doc.getMap('map').set('v', i.toString().repeat(sqrtN))
+        doc.getMap('map').set('v', i.toString().repeat(multiN))
       },
       docs => {
         const v = docs[0].getMap('map').get('v')
@@ -274,7 +277,7 @@ export async function runBenchmarksB3() {
     benchmarkAutomerge(
       benchmarkName,
       doc => { },
-      (doc, i) => { doc.v = i.toString().repeat(sqrtN) },
+      (doc, i) => { doc.v = i.toString().repeat(multiN) },
       docs => {
         const v = docs[0].v
         docs.forEach(doc => {
@@ -284,19 +287,19 @@ export async function runBenchmarksB3() {
     )
     await benchmarkFluid(
       benchmarkName,
-      (map, i) => { map.set('v', i.toString().repeat(sqrtN)) },
+      (map, i) => { map.set('v', i.toString().repeat(multiN)) },
       maps => {
         const v = maps[0].get('v')
         maps.forEach(map => {
           t.assert(map.get('v') === v)
         })
       },
-      SharedMap.getFactory()
+      SharedMap.getFactory(),
     )
   }
 
   {
-    const benchmarkName = '[B3.4] 20√N clients concurrently insert text in Array'
+    const benchmarkName = `[B3.4] ${multiN} clients concurrently insert text in Array`
     benchmarkYjs(
       benchmarkName,
       (doc, i) => {
@@ -319,7 +322,7 @@ export async function runBenchmarksB3() {
         docs.forEach(doc => {
           t.assert(doc.value().length === len)
         })
-        t.assert(len === sqrtN)
+        t.assert(len === multiN)
       }
     )
     benchmarkAutomerge(
@@ -342,7 +345,7 @@ export async function runBenchmarksB3() {
           t.assert(array.length === len)
         })
       },
-      SharedObjectSequence.getFactory()
+      SharedObjectSequence.getFactory(),
     )
   }
 }

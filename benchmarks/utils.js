@@ -10,9 +10,9 @@ import { TelemetryNullLogger } from '@fluidframework/shared-object-base/node_mod
 
 
 export const N = 6000
-export const sqrtN = math.floor(Math.sqrt(N)) * 20
-export const disableAutomergeBenchmarks = true
-export const disablePeersCrdtsBenchmarks = true
+export const multiN = 500
+export const disableAutomergeBenchmarks = false
+export const disablePeersCrdtsBenchmarks = false
 export const disableYjsBenchmarks = false
 export const disableFluidBenchmarks = false
 
@@ -179,7 +179,7 @@ export const getNContainers = async (sharedObjectFactory) => {
   const sharedObject1 = await fluidObject.getSharedObject(objectID)
   container1.deltaManager.setMaxListeners(100000)
   objects.push(sharedObject1)
-  for (let i = 0; i < sqrtN; i++) {
+  for (let i = 0; i < multiN; i++) {
     const loader2 = await testObjectProvider.makeTestLoader(testContainerConfig)
     const url = await testObjectProvider.driver.createContainerUrl(testObjectProvider.documentId) 
     const container2 = await loader2.resolve({ url: url})
