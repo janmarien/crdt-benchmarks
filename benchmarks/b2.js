@@ -12,7 +12,7 @@ const DeltaRGA = DeltaCRDT('rga')
 
 const initText = prng.word(gen, 100, 100)
 
-const benchmarkYjs = (id, changeDoc1, changeDoc2, check) => {
+const benchmarkYjs = async (id, changeDoc1, changeDoc2, check) => {
   const startHeapUsed = getMemUsed()
 
   if (disableYjsBenchmarks) {
@@ -42,7 +42,7 @@ const benchmarkYjs = (id, changeDoc1, changeDoc2, check) => {
   })
   doc1.getText('text').insert(0, initText)
   Y.applyUpdateV2(doc2, update1To2)
-  benchmarkTime('yjs', `${id} (time)`, () => {
+  await benchmarkTime('yjs', `${id} (time)`, () => {
     doc1.transact(() => {
       changeDoc1(doc1)
     })
@@ -57,14 +57,14 @@ const benchmarkYjs = (id, changeDoc1, changeDoc2, check) => {
   const encodedState = Y.encodeStateAsUpdateV2(doc1)
   const documentSize = encodedState.byteLength
   setBenchmarkResult('yjs', `${id} (docSize)`, `${documentSize} bytes`)
-  benchmarkTime('yjs', `${id} (parseTime)`, () => {
+  await benchmarkTime('yjs', `${id} (parseTime)`, () => {
     const doc = new Y.Doc()
     Y.applyUpdateV2(doc, encodedState)
     logMemoryUsed('yjs', id, startHeapUsed)
   })
 }
 
-const benchmarkDeltaCrdts = (id, changeDoc1, changeDoc2, check) => {
+const benchmarkDeltaCrdts = async (id, changeDoc1, changeDoc2, check) => {
   const startHeapUsed = getMemUsed()
 
   if (disablePeersCrdtsBenchmarks) {
@@ -89,7 +89,7 @@ const benchmarkDeltaCrdts = (id, changeDoc1, changeDoc2, check) => {
     doc2.apply(deltaCodec.decode(delta))
   })
 
-  benchmarkTime('delta-crdts', `${id} (time)`, () => {
+  await benchmarkTime('delta-crdts', `${id} (time)`, () => {
     update1to2 = changeDoc1(doc1).map(deltaCodec.encode)
     update2to1 = changeDoc2(doc2).map(deltaCodec.encode)
     // need to sync again because delta-crdts don't converge otherwise.. (see B2.4)
@@ -105,14 +105,14 @@ const benchmarkDeltaCrdts = (id, changeDoc1, changeDoc2, check) => {
   const encodedState = deltaCodec.encode(doc1.state())
   const documentSize = encodedState.byteLength
   setBenchmarkResult('delta-crdts', `${id} (docSize)`, `${documentSize} bytes`)
-  benchmarkTime('delta-crdts', `${id} (parseTime)`, () => {
+  await benchmarkTime('delta-crdts', `${id} (parseTime)`, () => {
     const doc = DeltaRGA('3')
     doc.apply(deltaCodec.decode(encodedState))
     logMemoryUsed('delta-crdts', id, startHeapUsed)
   })
 }
 
-const benchmarkAutomerge = (id, changeDoc1, changeDoc2, check) => {
+const benchmarkAutomerge = async (id, changeDoc1, changeDoc2, check) => {
   const startHeapUsed = getMemUsed()
   if (N > 10000 || disableAutomergeBenchmarks) {
     setBenchmarkResult('automerge', id, 'skipping')
@@ -125,7 +125,7 @@ const benchmarkAutomerge = (id, changeDoc1, changeDoc2, check) => {
   })
   let doc2 = Automerge.applyChanges(Automerge.init(), cpy(Automerge.getChanges(emptyDoc, doc1)))
   let updateSize = 0
-  benchmarkTime('automerge', `${id} (time)`, () => {
+  await benchmarkTime('automerge', `${id} (time)`, () => {
     const updatedDoc1 = Automerge.change(doc1, changeDoc1)
     const updatedDoc2 = Automerge.change(doc2, changeDoc2)
     const update2 = JSON.stringify(Automerge.getChanges(doc1, updatedDoc1))
@@ -139,7 +139,7 @@ const benchmarkAutomerge = (id, changeDoc1, changeDoc2, check) => {
   const encodedState = Automerge.save(doc1)
   const documentSize = encodedState.length
   setBenchmarkResult('automerge', `${id} (docSize)`, `${documentSize} bytes`)
-  benchmarkTime('automerge', `${id} (parseTime)`, () => {
+  await benchmarkTime('automerge', `${id} (parseTime)`, () => {
     Automerge.load(encodedState)
   })
   logMemoryUsed('automerge', id, startHeapUsed)
@@ -189,7 +189,7 @@ export async function runBenchmarksB2() {
     const benchmarkName = '[B2.1] Concurrently insert string of length N at index 0'
     const string1 = prng.word(gen, N, N)
     const string2 = prng.word(gen, N, N)
-    benchmarkYjs(
+    await benchmarkYjs(
       benchmarkName,
       doc1 => { doc1.getText('text').insert(0, string1) },
       doc2 => { doc2.getText('text').insert(0, string2) },
@@ -198,7 +198,7 @@ export async function runBenchmarksB2() {
         t.assert(doc1.getText('text').toString().length === N * 2 + 100)
       }
     )
-    benchmarkDeltaCrdts(
+    await benchmarkDeltaCrdts(
       benchmarkName,
       doc1 => deltaInsertHelper(doc1, 0, string1),
       doc2 => deltaInsertHelper(doc2, 0, string2),
@@ -207,7 +207,7 @@ export async function runBenchmarksB2() {
         t.assert(doc1.value().join('').length === N * 2 + 100)
       }
     )
-    benchmarkAutomerge(
+    await benchmarkAutomerge(
       benchmarkName,
       doc1 => { doc1.text.insertAt(0, ...string1) },
       doc2 => { doc2.text.insertAt(0, ...string2) },
@@ -242,7 +242,7 @@ export async function runBenchmarksB2() {
     }
     const input1 = genInput()
     const input2 = genInput()
-    benchmarkYjs(
+    await benchmarkYjs(
       benchmarkName,
       doc1 => {
         const ytext = doc1.getText('text')
@@ -257,7 +257,7 @@ export async function runBenchmarksB2() {
         t.assert(doc1.getText('text').toString().length === N * 2 + 100)
       }
     )
-    benchmarkDeltaCrdts(
+    await benchmarkDeltaCrdts(
       benchmarkName,
       doc1 => input1.map(({ index, insert }) => deltaInsertHelper(doc1, index, insert)).flat(1),
       doc2 => input2.map(({ index, insert }) => deltaInsertHelper(doc2, index, insert)).flat(1),
@@ -266,7 +266,7 @@ export async function runBenchmarksB2() {
         t.assert(doc1.value().join('').length === N * 2 + 100)
       }
     )
-    benchmarkAutomerge(
+    await benchmarkAutomerge(
       benchmarkName,
       doc1 => {
         input1.forEach(({ index, insert }) => { doc1.text.insertAt(index, ...insert) })
@@ -309,7 +309,7 @@ export async function runBenchmarksB2() {
     }
     const input1 = genInput()
     const input2 = genInput()
-    benchmarkYjs(
+    await benchmarkYjs(
       benchmarkName,
       doc1 => {
         const ytext = doc1.getText('text')
@@ -323,7 +323,7 @@ export async function runBenchmarksB2() {
         t.assert(doc1.getText('text').toString() === doc2.getText('text').toString())
       }
     )
-    benchmarkDeltaCrdts(
+    await benchmarkDeltaCrdts(
       benchmarkName,
       doc1 => input1.map(({ index, insert }) => deltaInsertHelper(doc1, index, insert)).flat(1),
       doc2 => input2.map(({ index, insert }) => deltaInsertHelper(doc2, index, insert)).flat(1),
@@ -331,7 +331,7 @@ export async function runBenchmarksB2() {
         t.assert(doc1.value().join('') === doc2.value().join(''))
       }
     )
-    benchmarkAutomerge(
+    await benchmarkAutomerge(
       benchmarkName,
       doc1 => {
         input1.forEach(({ index, insert }) => { doc1.text.insertAt(index, ...insert) })
@@ -381,7 +381,7 @@ export async function runBenchmarksB2() {
     }
     const input1 = genInput()
     const input2 = genInput()
-    benchmarkYjs(
+    await benchmarkYjs(
       benchmarkName,
       doc1 => {
         const ytext = doc1.getText('text')
@@ -407,7 +407,7 @@ export async function runBenchmarksB2() {
         t.assert(doc1.getText('text').toString() === doc2.getText('text').toString())
       }
     )
-    benchmarkDeltaCrdts(
+    await benchmarkDeltaCrdts(
       benchmarkName,
       doc1 => input1.map(({ index, insert, deleteCount }) => {
         if (insert !== undefined) {
@@ -431,7 +431,7 @@ export async function runBenchmarksB2() {
         t.assert(doc1.value().join('') === doc2.value().join(''))
       }
     )
-    benchmarkAutomerge(
+    await benchmarkAutomerge(
       benchmarkName,
       doc1 => {
         input1.forEach(({ index, insert, deleteCount }) => {

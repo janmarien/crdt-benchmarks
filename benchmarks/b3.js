@@ -12,7 +12,7 @@ const DeltaRGA = DeltaCRDT('rga')
 
 console.log('# Clients =', multiN)
 
-const benchmarkYjs = (id, changeDoc, check) => {
+const benchmarkYjs = async (id, changeDoc, check) => {
   const startHeapUsed = getMemUsed()
 
   if (disableYjsBenchmarks) {
@@ -38,7 +38,7 @@ const benchmarkYjs = (id, changeDoc, check) => {
   for (let i = 0; i < updates.length; i++) {
     Y.applyUpdateV2(docs[0], updates[i], 'remote')
   }
-  benchmarkTime('yjs', `${id} (time)`, () => {
+  await benchmarkTime('yjs', `${id} (time)`, () => {
     for (let i = 0; i < updates.length; i++) {
       Y.applyUpdateV2(docs[1], updates[i], 'remote')
     }
@@ -49,14 +49,14 @@ const benchmarkYjs = (id, changeDoc, check) => {
   const encodedState = Y.encodeStateAsUpdateV2(docs[0])
   const documentSize = encodedState.byteLength
   setBenchmarkResult('yjs', `${id} (docSize)`, `${documentSize} bytes`)
-  benchmarkTime('yjs', `${id} (parseTime)`, () => {
+  await benchmarkTime('yjs', `${id} (parseTime)`, () => {
     const doc = new Y.Doc()
     Y.applyUpdateV2(doc, encodedState)
     logMemoryUsed('yjs', id, startHeapUsed)
   })
 }
 
-const benchmarkDeltaCrdts = (id, changeDoc, check) => {
+const benchmarkDeltaCrdts = async (id, changeDoc, check) => {
   const startHeapUsed = getMemUsed()
 
   if (disablePeersCrdtsBenchmarks) {
@@ -77,7 +77,7 @@ const benchmarkDeltaCrdts = (id, changeDoc, check) => {
   updates.forEach(update => {
     docs[0].apply(deltaCodec.decode(update))
   })
-  benchmarkTime('delta-crdts', `${id} (time)`, () => {
+  await benchmarkTime('delta-crdts', `${id} (time)`, () => {
     updates.forEach(update => {
       docs[1].apply(deltaCodec.decode(update))
     })
@@ -89,7 +89,7 @@ const benchmarkDeltaCrdts = (id, changeDoc, check) => {
   const encodedState = deltaCodec.encode(docs[0].state())
   const documentSize = encodedState.byteLength
   setBenchmarkResult('delta-crdts', `${id} (docSize)`, `${documentSize} bytes`)
-  benchmarkTime('delta-crdts', `${id} (parseTime)`, () => {
+  await benchmarkTime('delta-crdts', `${id} (parseTime)`, () => {
     const doc = DeltaRGA('fresh')
     updates.forEach(update => {
       doc.apply(deltaCodec.decode(update))
@@ -98,7 +98,7 @@ const benchmarkDeltaCrdts = (id, changeDoc, check) => {
   })
 }
 
-const benchmarkAutomerge = (id, init, changeDoc, check) => {
+const benchmarkAutomerge = async (id, init, changeDoc, check) => {
   const startHeapUsed = getMemUsed()
   if (N > 10000 || disableAutomergeBenchmarks) {
     setBenchmarkResult('automerge', id, 'skipping')
@@ -124,7 +124,7 @@ const benchmarkAutomerge = (id, init, changeDoc, check) => {
   for (let i = 0; i < updates.length; i++) {
     docs[0] = Automerge.applyChanges(docs[0], JSON.parse(updates[i]))
   }
-  benchmarkTime('automerge', `${id} (time)`, () => {
+  await benchmarkTime('automerge', `${id} (time)`, () => {
     for (let i = 0; i < updates.length; i++) {
       docs[1] = Automerge.applyChanges(docs[1], JSON.parse(updates[i]))
     }
@@ -134,7 +134,7 @@ const benchmarkAutomerge = (id, init, changeDoc, check) => {
   const encodedState = Automerge.save(docs[0])
   const documentSize = encodedState.length
   setBenchmarkResult('automerge', `${id} (docSize)`, `${documentSize} bytes`)
-  benchmarkTime('automerge', `${id} (parseTime)`, () => {
+  await benchmarkTime('automerge', `${id} (parseTime)`, () => {
     // @ts-ignore
     const doc = Automerge.load(encodedState) // eslint-disable-line
     logMemoryUsed('automerge', id, startHeapUsed)
