@@ -152,6 +152,7 @@ const benchmarkFluid = async (id, inputData, changeFunction, check, objectFactor
   const containersAndOpc = await getContainers(objectFactory)
   const object1 = containersAndOpc[0]
   const object2 = containersAndOpc[1]
+  const parseFunction = containersAndOpc[3]
   const testObjectProvider = containersAndOpc[2]
   let updateSize = 0
   let nUpdates = 0
@@ -170,7 +171,13 @@ const benchmarkFluid = async (id, inputData, changeFunction, check, objectFactor
   setBenchmarkResult('fluid', `${id} (avgUpdateSize)`, `${math.round(updateSize / nUpdates)} bytes`)
   const docSize = await calculateContainerSize(object1.runtime.dataStoreContext._containerRuntime)
   setBenchmarkResult('fluid', `${id} (docSize)`, `${docSize} bytes`)
-  logMemoryUsed('fluid', id, startHeapUsed)
+  //logMemoryUsed('fluid', id, startHeapUsed)
+
+  await benchmarkTime('fluid', `${id} (parseTime)`, async () => {
+    const object3 = await parseFunction()
+    //check(object1, object3)
+    logMemoryUsed('fluid', id, startHeapUsed)
+  })
   testObjectProvider.reset()
 }
 

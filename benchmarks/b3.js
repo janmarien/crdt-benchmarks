@@ -154,6 +154,7 @@ const benchmarkFluid = async (id, changeFunction, check, objectFactory, disable 
   const containersAndOpc = await getNContainers(objectFactory)
   const objects = containersAndOpc[0]
   const testObjectProvider = containersAndOpc[1]
+  const parseFunction = containersAndOpc[2]
 
   let updateSize = 0
   let nUpdates = 0
@@ -169,11 +170,16 @@ const benchmarkFluid = async (id, changeFunction, check, objectFactory, disable 
     await testObjectProvider.ensureSynchronized();
   })
   check(objects.slice(0, 2))
-  setBenchmarkResult('fluid', `${id} (updateSize)`, `${math.round(updateSize / nUpdates)} bytes`)
+  setBenchmarkResult('fluid', `${id} (updateSize)`, `${math.round(updateSize)} bytes`)
   const snap = objects[1].summarize(true, true)
   const documentSize = snap.stats.totalBlobSize
   setBenchmarkResult('fluid', `${id} (docSize)`, `${documentSize} bytes`)
-  logMemoryUsed('fluid', id, startHeapUsed)
+  //logMemoryUsed('fluid', id, startHeapUsed)
+  await benchmarkTime('fluid', `${id} (parseTime)`, async () => {
+    await parseFunction()
+    //check(object1, object3)
+    logMemoryUsed('fluid', id, startHeapUsed)
+  })
   testObjectProvider.reset()
 }
 

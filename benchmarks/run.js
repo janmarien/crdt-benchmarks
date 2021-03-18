@@ -9,8 +9,8 @@ import { benchmarkResults, N } from './utils.js'
   try {
     await runBenchmarks();
     await runNumberBenchmarks();
-    await runBenchmarksB2();
-    await runBenchmarksB3();
+    //await runBenchmarksB2();
+    //await runBenchmarksB3();
     // print markdown table with the results
     let mdTable = `| N = ${N} | [Yjs](https://github.com/yjs/yjs) | [Automerge](https://github.com/automerge/automerge) | [delta-crdts](https://github.com/peer-base/js-delta-crdts) | [Fluid](https://fluidframework.com) \n`
     mdTable += '| :- | -: | -: | -: | -: |\n'

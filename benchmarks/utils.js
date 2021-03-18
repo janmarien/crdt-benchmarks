@@ -11,9 +11,9 @@ import { TelemetryNullLogger } from '@fluidframework/common-utils'
 
 export const N = 6000
 export const multiN = 500
-export const disableAutomergeBenchmarks = false
-export const disablePeersCrdtsBenchmarks = false
-export const disableYjsBenchmarks = false
+export const disableAutomergeBenchmarks = true
+export const disablePeersCrdtsBenchmarks = true
+export const disableYjsBenchmarks = true
 export const disableFluidBenchmarks = false
 
 export const benchmarkResults = {}
@@ -143,7 +143,16 @@ export const getContainers = async (sharedObjectFactory) => {
   containers.push(container1, container2)
   testObjectProvider.opProcessingController.addDeltaManagers(container1.deltaManager, container2.deltaManager)
 
-  return [sharedObject1, sharedObject2, testObjectProvider]
+  return [sharedObject1, sharedObject2, testObjectProvider, async () => {
+    const loader3 = await testObjectProvider.makeTestLoader(testContainerConfig)
+    const url2 = await testObjectProvider.driver.createContainerUrl(testObjectProvider.documentId)
+    const container3 = await loader3.resolve({url: url2})
+    testObjectProvider.opProcessingController.addDeltaManagers(container3.deltaManager)
+    const dataObject3 = await requestFluidObject(container3, 'default')
+    const sharedOject3 = dataObject3.getSharedObject(objectID)
+    await testObjectProvider.ensureSynchronized()
+    return sharedOject3
+  }]
 }
 
 /**
@@ -191,7 +200,15 @@ export const getNContainers = async (sharedObjectFactory) => {
     container2.deltaManager.setMaxListeners(10000)
     objects.push(sharedObject2)
   }
-  return [objects, testObjectProvider]
+  return [objects, testObjectProvider, async () => {
+    const loader3 = await testObjectProvider.makeTestLoader(testContainerConfig)
+    const url2 = await testObjectProvider.driver.createContainerUrl(testObjectProvider.documentId)
+    const container3 = await loader3.resolve({url: url2})
+    testObjectProvider.opProcessingController.addDeltaManagers(container3.deltaManager)
+    const dataObject3 = await requestFluidObject(container3, 'default')
+    const sharedOject3 = dataObject3.getSharedObject(objectID)
+    await testObjectProvider.ensureSynchronized()
+    return sharedOject3]
 }
 
 /**
