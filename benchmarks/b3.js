@@ -181,7 +181,7 @@ const benchmarkFluid = async (id, changeFunction, check, objectFactory, disable 
 export async function runBenchmarksB3() {
   {
     const benchmarkName = `[B3.1] ${multiN} clients concurrently set number in Map`
-    benchmarkYjs(
+    await benchmarkYjs(
       benchmarkName,
       (doc, i) => doc.getMap('map').set('v', i),
       docs => {
@@ -191,7 +191,7 @@ export async function runBenchmarksB3() {
         })
       }
     )
-    benchmarkAutomerge(
+    await benchmarkAutomerge(
       benchmarkName,
       doc => { },
       (doc, i) => { doc.v = i },
@@ -218,7 +218,7 @@ export async function runBenchmarksB3() {
   {
     const benchmarkName = `[B3.2] ${multiN} clients concurrently set Object in Map`
     // each client sets a user data object { name: id, address: 'here' }
-    benchmarkYjs(
+    await benchmarkYjs(
       benchmarkName,
       (doc, i) => {
         const v = new Y.Map()
@@ -233,7 +233,7 @@ export async function runBenchmarksB3() {
         })
       }
     )
-    benchmarkAutomerge(
+    await benchmarkAutomerge(
       benchmarkName,
       doc => { },
       (doc, i) => { doc.v = { name: i.toString(), address: 'here' } },
@@ -262,7 +262,7 @@ export async function runBenchmarksB3() {
 
   {
     const benchmarkName = `[B3.3] ${multiN} clients concurrently set String in Map`
-    benchmarkYjs(
+    await benchmarkYjs(
       benchmarkName,
       (doc, i) => {
         doc.getMap('map').set('v', i.toString().repeat(multiN))
@@ -274,7 +274,7 @@ export async function runBenchmarksB3() {
         })
       }
     )
-    benchmarkAutomerge(
+    await benchmarkAutomerge(
       benchmarkName,
       doc => { },
       (doc, i) => { doc.v = i.toString().repeat(multiN) },
@@ -300,7 +300,7 @@ export async function runBenchmarksB3() {
 
   {
     const benchmarkName = `[B3.4] ${multiN} clients concurrently insert text in Array`
-    benchmarkYjs(
+    await benchmarkYjs(
       benchmarkName,
       (doc, i) => {
         doc.getArray('array').insert(0, [i.toString()])
@@ -312,7 +312,7 @@ export async function runBenchmarksB3() {
         })
       }
     )
-    benchmarkDeltaCrdts(
+    await benchmarkDeltaCrdts(
       benchmarkName,
       (doc, i) => {
         return [doc.insertAt(0, i.toString())]
@@ -325,7 +325,7 @@ export async function runBenchmarksB3() {
         t.assert(len === multiN)
       }
     )
-    benchmarkAutomerge(
+    await benchmarkAutomerge(
       benchmarkName,
       doc => { doc.array = [] },
       (doc, i) => { doc.array.insertAt(0, i.toString()) },
