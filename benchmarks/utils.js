@@ -11,9 +11,9 @@ import { TelemetryNullLogger } from '@fluidframework/common-utils'
 
 export const N = 6000
 export const multiN = 500
-export const disableAutomergeBenchmarks = true
-export const disablePeersCrdtsBenchmarks = true
-export const disableYjsBenchmarks = true
+export const disableAutomergeBenchmarks = false
+export const disablePeersCrdtsBenchmarks = false
+export const disableYjsBenchmarks = false
 export const disableFluidBenchmarks = false
 
 export const benchmarkResults = {}
@@ -208,8 +208,8 @@ export const getNContainers = async (sharedObjectFactory) => {
     const dataObject3 = await requestFluidObject(container3, 'default')
     const sharedOject3 = dataObject3.getSharedObject(objectID)
     await testObjectProvider.ensureSynchronized()
-    return sharedOject3]
-}
+    return sharedOject3
+}]
 
 /**
  * 
