@@ -126,29 +126,25 @@ Replay the [B4] dataset one hundred times. The final document has a size of over
 |[B1.11] Insert N numbers at random positions (memUsed)                    |             0 B |         70.5 MB |          1.4 MB |         40.2 MB |
 |[B1.11] Insert N numbers at random positions (parseTime)                  |           35 ms |          793 ms |          572 ms |                 |
 |[B2.1] Concurrently insert string of length N at index 0 (time)           |            5 ms |         6333 ms |        36414 ms |            2 ms |
-|[B2.1] Concurrently insert string of length N at index 0 (updateSize)     |     12058 bytes |   2970726 bytes |    551984 bytes |                 |
+|[B2.1] Concurrently insert string of length N at index 0 (updateSize)     |     12058 bytes |   2970726 bytes |    551984 bytes |           6629 bytes |
 |[B2.1] Concurrently insert string of length N at index 0 (docSize)        |     12151 bytes |   3164619 bytes |    375131 bytes |      7507 bytes |
 |[B2.1] Concurrently insert string of length N at index 0 (memUsed)        |             0 B |        107.1 MB |            4 MB |             0 B |
 |[B2.1] Concurrently insert string of length N at index 0 (parseTime)      |           13 ms |          825 ms |           76 ms |                 |
-|[B2.1] Concurrently insert string of length N at index 0 (avgUpdateSize)  |                 |                 |                 |      6629 bytes |
 |[B2.2] Concurrently insert N characters at random positions (time)        |          134 ms |        58419 ms |        36248 ms |         7156 ms |
-|[B2.2] Concurrently insert N characters at random positions (updateSize)  |     66250 bytes |   2753309 bytes |    551952 bytes |                 |
+|[B2.2] Concurrently insert N characters at random positions (updateSize)  |     66250 bytes |   2753309 bytes |    551952 bytes |            584 bytes |
 |[B2.2] Concurrently insert N characters at random positions (docSize)     |     66346 bytes |   2947202 bytes |    375131 bytes |   7393518 bytes |
 |[B2.2] Concurrently insert N characters at random positions (memUsed)     |          7.9 MB |         97.5 MB |          4.7 MB |        103.7 MB |
 |[B2.2] Concurrently insert N characters at random positions (parseTime)   |           44 ms |        66345 ms |         2019 ms |                 |
-|[B2.2] Concurrently insert N characters at random positions (avgUpdateSize) |                 |                 |                 |       584 bytes |
 |[B2.3] Concurrently insert N words at random positions (time)             |          214 ms |       267347 ms |      2378447 ms |         7155 ms |
-|[B2.3] Concurrently insert N words at random positions (updateSize)       |    177626 bytes |  17694557 bytes |   3295508 bytes |                 |
+|[B2.3] Concurrently insert N words at random positions (updateSize)       |    177626 bytes |  17694557 bytes |   3295508 bytes |           615 bytes |
 |[B2.3] Concurrently insert N words at random positions (docSize)          |    177768 bytes |  18723438 bytes |   2224037 bytes |   7031286 bytes |
 |[B2.3] Concurrently insert N words at random positions (memUsed)          |         16.8 MB |        621.1 MB |         39.9 MB |        111.2 MB |
 |[B2.3] Concurrently insert N words at random positions (parseTime)        |           97 ms |        93189 ms |        26649 ms |                 |
-|[B2.3] Concurrently insert N words at random positions (avgUpdateSize)    |                 |                 |                 |       615 bytes |
 |[B2.4] Concurrently insert & delete (time)                                |          433 ms |       487156 ms |      2872111 ms |        24023 ms |
-|[B2.4] Concurrently insert & delete (updateSize)                          |    278576 bytes |  26581955 bytes |   5560833 bytes |                 |
+|[B2.4] Concurrently insert & delete (updateSize)                          |    278576 bytes |  26581955 bytes |   5560833 bytes |           591 bytes |
 |[B2.4] Concurrently insert & delete (docSize)                             |    278719 bytes |  28114528 bytes |   3607278 bytes |   7428170 bytes |
 |[B2.4] Concurrently insert & delete (memUsed)                             |         29.2 MB |        851.9 MB |         35.1 MB |        203.6 MB |
 |[B2.4] Concurrently insert & delete (parseTime)                           |          241 ms |         9594 ms |        43455 ms |                 |
-|[B2.4] Concurrently insert & delete (avgUpdateSize)                       |                 |                 |                 |       591 bytes |
 |[B3.1] 500 clients concurrently set number in Map (time)                  |           82 ms |          541 ms |                 |         2533 ms |
 |[B3.1] 500 clients concurrently set number in Map (updateSize)            |     15923 bytes |     79890 bytes |                 |       600 bytes |
 |[B3.1] 500 clients concurrently set number in Map (docSize)               |     10476 bytes |     93402 bytes |                 |        94 bytes |
