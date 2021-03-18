@@ -150,29 +150,25 @@ Replay the [B4] dataset one hundred times. The final document has a size of over
 |[B2.4] Concurrently insert & delete (parseTime)                           |          241 ms |         9594 ms |        43455 ms |                 |
 |[B2.4] Concurrently insert & delete (avgUpdateSize)                       |                 |                 |                 |       591 bytes |
 |[B3.1] 500 clients concurrently set number in Map (time)                  |           82 ms |          541 ms |                 |         2533 ms |
-|[B3.1] 500 clients concurrently set number in Map (updateSize)            |     15923 bytes |     79890 bytes |                 |                 |
+|[B3.1] 500 clients concurrently set number in Map (updateSize)            |     15923 bytes |     79890 bytes |                 |       600 bytes |
 |[B3.1] 500 clients concurrently set number in Map (docSize)               |     10476 bytes |     93402 bytes |                 |        94 bytes |
 |[B3.1] 500 clients concurrently set number in Map (memUsed)               |          1.9 MB |          8.5 MB |                 |        458.7 MB |
 |[B3.1] 500 clients concurrently set number in Map (parseTime)             |          184 ms |          575 ms |                 |                 |
-|[B3.1] 500 clients concurrently set number in Map (avgUpdateSize)         |                 |                 |                 |       600 bytes |
 |[B3.2] 500 clients concurrently set Object in Map (time)                  |           99 ms |          921 ms |                 |         3333 ms |
-|[B3.2] 500 clients concurrently set Object in Map (updateSize)            |     30868 bytes |    221890 bytes |                 |                 |
+|[B3.2] 500 clients concurrently set Object in Map (updateSize)            |     30868 bytes |    221890 bytes |                 |       628 bytes |
 |[B3.2] 500 clients concurrently set Object in Map (docSize)               |     13482 bytes |    245902 bytes |                 |       122 bytes |
 |[B3.2] 500 clients concurrently set Object in Map (memUsed)               |             0 B |           17 MB |                 |        446.3 MB |
 |[B3.2] 500 clients concurrently set Object in Map (parseTime)             |          188 ms |          821 ms |                 |                 |
-|[B3.2] 500 clients concurrently set Object in Map (avgUpdateSize)         |                 |                 |                 |       628 bytes |
 |[B3.3] 500 clients concurrently set String in Map (time)                  |          109 ms |          718 ms |                 |         4030 ms |
-|[B3.3] 500 clients concurrently set String in Map (updateSize)            |    710980 bytes |    774500 bytes |                 |                 |
+|[B3.3] 500 clients concurrently set String in Map (updateSize)            |    710980 bytes |    774500 bytes |                 |      1990 bytes |
 |[B3.3] 500 clients concurrently set String in Map (docSize)               |     11969 bytes |    788012 bytes |                 |       595 bytes |
 |[B3.3] 500 clients concurrently set String in Map (memUsed)               |             0 B |         11.6 MB |                 |        461.6 MB |
 |[B3.3] 500 clients concurrently set String in Map (parseTime)             |          186 ms |          759 ms |                 |                 |
-|[B3.3] 500 clients concurrently set String in Map (avgUpdateSize)         |                 |                 |                 |      1990 bytes |
 |[B3.4] 500 clients concurrently insert text in Array (time)               |          101 ms |         1835 ms |          142 ms |       182214 ms |
-|[B3.4] 500 clients concurrently insert text in Array (updateSize)         |     16870 bytes |    161850 bytes |     19890 bytes |                 |
+|[B3.4] 500 clients concurrently insert text in Array (updateSize)         |     16870 bytes |    161850 bytes |     19890 bytes |      1180 bytes       |
 |[B3.4] 500 clients concurrently insert text in Array (docSize)            |      8395 bytes |    179163 bytes |     16417 bytes |     82909 bytes |
 |[B3.4] 500 clients concurrently insert text in Array (memUsed)            |             0 B |         16.6 MB |          1.5 MB |          1.9 GB |
 |[B3.4] 500 clients concurrently insert text in Array (parseTime)          |          184 ms |         3852 ms |          315 ms |                 |
-|[B3.4] 500 clients concurrently insert text in Array (avgUpdateSize)      |                 |                 |                 |      1180 bytes |
 
 | N = 60000 | Yjs | automerge |
 | :- | -: | -: |

@@ -169,7 +169,7 @@ const benchmarkFluid = async (id, changeFunction, check, objectFactory, disable 
     await testObjectProvider.ensureSynchronized();
   })
   check(objects.slice(0, 2))
-  setBenchmarkResult('fluid', `${id} (avgUpdateSize)`, `${math.round(updateSize / nUpdates)} bytes`)
+  setBenchmarkResult('fluid', `${id} (updateSize)`, `${math.round(updateSize / nUpdates)} bytes`)
   const snap = objects[1].summarize(true, true)
   const documentSize = snap.stats.totalBlobSize
   setBenchmarkResult('fluid', `${id} (docSize)`, `${documentSize} bytes`)
