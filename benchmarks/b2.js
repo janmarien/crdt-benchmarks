@@ -1,6 +1,6 @@
 
 import * as Y from 'yjs'
-import { setBenchmarkResult, gen, N, benchmarkTime, cpy, disableAutomergeBenchmarks, disableYjsBenchmarks, disablePeersCrdtsBenchmarks, logMemoryUsed, getMemUsed, deltaInsertHelper, deltaDeleteHelper, getContainers, disableFluidBenchmarks } from './utils.js'
+import { setBenchmarkResult, gen, N, benchmarkTime, cpy, disableAutomergeBenchmarks, disableYjsBenchmarks, disablePeersCrdtsBenchmarks, logMemoryUsed, getMemUsed, deltaInsertHelper, deltaDeleteHelper, getContainers, disableFluidBenchmarks, calculateContainerSize } from './utils.js'
 import * as prng from 'lib0/prng.js'
 import * as math from 'lib0/math.js'
 import * as t from 'lib0/testing.js'
@@ -166,9 +166,12 @@ const benchmarkFluid = async (id, changeFunction1, changeFunction2, check) => {
   object1.insertText(0, initText)
   await testObjectProvider.ensureSynchronized();
   let updateSize = 0
-  let nUpdates = 0
   object1.on("op", op => {
-    nUpdates += 1
+    if (op.clientId !== object1.client.longClientId)
+    updateSize += JSON.stringify(op).length
+  })
+  object2.on("op", op => {
+    if (op.clientId !== object2.client.longClientId)
     updateSize += JSON.stringify(op).length
   })
 
@@ -179,9 +182,8 @@ const benchmarkFluid = async (id, changeFunction1, changeFunction2, check) => {
   })
   check(object1, object2)
   setBenchmarkResult('fluid', `${id} (updateSize)`, `${math.round(updateSize)} bytes`)
-  const snap = object2.summarize(true, true)
-  const documentSize = snap.stats.totalBlobSize
-  setBenchmarkResult('fluid', `${id} (docSize)`, `${documentSize} bytes`)
+  const docSize = await calculateContainerSize(object1.runtime.dataStoreContext._containerRuntime)
+  setBenchmarkResult('fluid', `${id} (docSize)`, `${docSize} bytes`)
   //logMemoryUsed('fluid', id, startHeapUsed)
   await benchmarkTime('fluid', `${id} (parseTime)`, async () => {
     await parseFunction()

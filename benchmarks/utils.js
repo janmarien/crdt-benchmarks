@@ -11,9 +11,9 @@ import { TelemetryNullLogger } from '@fluidframework/common-utils'
 
 export const N = 6000
 export const multiN = 500
-export const disableAutomergeBenchmarks = false
-export const disablePeersCrdtsBenchmarks = false
-export const disableYjsBenchmarks = false
+export const disableAutomergeBenchmarks = true
+export const disablePeersCrdtsBenchmarks = true
+export const disableYjsBenchmarks = true
 export const disableFluidBenchmarks = false
 
 export const benchmarkResults = {}
@@ -107,6 +107,41 @@ export const cleanContainers = async () => {
     await container.close()
   }
   containers = []
+}
+
+export const getContainer = async (sharedObjectFactory) => {
+  const objectID = 'sharedObject'
+  const runtimeFactory = (_) => new TestContainerRuntimeFactory('@fluid-example/test-dataStore', new TestFluidObjectFactory([[objectID, sharedObjectFactory]]), { generateSummaries: false })
+  let testObjectProvider
+  if (USE_TINYLICIOUS) {
+    // Use Tinylicious server
+    testObjectProvider = new TestObjectProvider(Loader, new TinyliciousTestDriver(), runtimeFactory)
+  } else {
+    // Use local server
+    testObjectProvider = new TestObjectProvider(Loader, new LocalServerTestDriver(), runtimeFactory)
+  }
+  const registry = [[objectID, sharedObjectFactory]]
+  const testContainerConfig = {
+    fluidDataObjectType: 0,
+    registry,
+    generateSummaries: false
+  }
+
+  const container1 = await testObjectProvider.makeTestContainer(testContainerConfig)
+  const fluidObject = await requestFluidObject(container1, 'default')
+  const sharedObject1 = await fluidObject.getSharedObject(objectID)
+  testObjectProvider.opProcessingController.addDeltaManagers(container1.deltaManager)
+
+  return [sharedObject1, testObjectProvider, async () => {
+    const loader3 = await testObjectProvider.makeTestLoader(testContainerConfig)
+    const url2 = await testObjectProvider.driver.createContainerUrl(testObjectProvider.documentId)
+    const container3 = await loader3.resolve({ url: url2 })
+    testObjectProvider.opProcessingController.addDeltaManagers(container3.deltaManager)
+    const dataObject3 = await requestFluidObject(container3, 'default')
+    const sharedOject3 = dataObject3.getSharedObject(objectID)
+    await testObjectProvider.ensureSynchronized()
+    return sharedOject3
+  }]
 }
 
 /**
@@ -211,6 +246,8 @@ export const getNContainers = async (sharedObjectFactory) => {
     return sharedOject3
   }]
 }
+
+
 
 /**
  * 

@@ -1,6 +1,6 @@
 
 import * as Y from 'yjs'
-import { setBenchmarkResult, benchmarkTime, N, disableAutomergeBenchmarks, disableYjsBenchmarks, disablePeersCrdtsBenchmarks, logMemoryUsed, getMemUsed, disableFluidBenchmarks, getNContainers, multiN } from './utils.js'
+import { setBenchmarkResult, benchmarkTime, N, disableAutomergeBenchmarks, disableYjsBenchmarks, disablePeersCrdtsBenchmarks, logMemoryUsed, getMemUsed, disableFluidBenchmarks, getNContainers, multiN, calculateContainerSize } from './utils.js'
 import * as t from 'lib0/testing.js'
 import * as math from 'lib0/math.js'
 import Automerge, { change } from 'automerge'
@@ -171,13 +171,11 @@ const benchmarkFluid = async (id, changeFunction, check, objectFactory, disable 
   })
   check(objects.slice(0, 2))
   setBenchmarkResult('fluid', `${id} (updateSize)`, `${math.round(updateSize)} bytes`)
-  const snap = objects[1].summarize(true, true)
-  const documentSize = snap.stats.totalBlobSize
-  setBenchmarkResult('fluid', `${id} (docSize)`, `${documentSize} bytes`)
-  //logMemoryUsed('fluid', id, startHeapUsed)
+  const docSize = await calculateContainerSize(objects[1].runtime.dataStoreContext._containerRuntime)
+
+  setBenchmarkResult('fluid', `${id} (docSize)`, `${docSize} bytes`)
   await benchmarkTime('fluid', `${id} (parseTime)`, async () => {
     await parseFunction()
-    //check(object1, object3)
     logMemoryUsed('fluid', id, startHeapUsed)
   })
   testObjectProvider.reset()
