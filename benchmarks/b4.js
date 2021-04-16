@@ -9,6 +9,7 @@ import DeltaCRDT from 'delta-crdts'
 import deltaCodec from 'delta-crdts-msgpack-codec'
 import { SharedString } from '@fluidframework/sequence'
 
+console.log(edits.length)
 const DeltaRGA = DeltaCRDT('rga')
 
 const benchmarkYjs = async (id, inputData, changeFunction, check) => {

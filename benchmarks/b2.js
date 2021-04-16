@@ -166,13 +166,15 @@ const benchmarkFluid = async (id, changeFunction1, changeFunction2, check) => {
   object1.insertText(0, initText)
   await testObjectProvider.ensureSynchronized();
   let updateSize = 0
-  object1.on("op", op => {
-    if (op.clientId !== object1.client.longClientId)
-    updateSize += JSON.stringify(op).length
+  object1.on("op", (op, local) => {
+    if (local) {
+      updateSize += JSON.stringify(op).length
+    }
   })
-  object2.on("op", op => {
-    if (op.clientId !== object2.client.longClientId)
-    updateSize += JSON.stringify(op).length
+  object2.on("op", (op, local) => {
+    if (local) {
+      updateSize += JSON.stringify(op).length
+    }
   })
 
   await benchmarkTime('fluid', `${id} (time)`, async () => {

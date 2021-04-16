@@ -156,13 +156,14 @@ const benchmarkFluid = async (id, changeFunction, check, objectFactory, disable 
   const testObjectProvider = containersAndOpc[1]
   const parseFunction = containersAndOpc[2]
 
-  let updateSize = 0
-  let nUpdates = 0
-  objects[1].on("op", op => {
-    nUpdates += 1
-    updateSize += JSON.stringify(op).length
-  })
-
+  let updates = []
+  objects.forEach(object => {
+    object.on("op", (op, local) => {
+      if (local) {
+        updates.push(op)
+      }
+    })
+  });
   await benchmarkTime('fluid', `${id} (time)`, async () => {
     objects.forEach((object, i) => {
       changeFunction(object, i)
@@ -170,7 +171,9 @@ const benchmarkFluid = async (id, changeFunction, check, objectFactory, disable 
     await testObjectProvider.ensureSynchronized();
   })
   check(objects.slice(0, 2))
-  setBenchmarkResult('fluid', `${id} (updateSize)`, `${math.round(updateSize)} bytes`)
+  console.log(updates.length)
+
+  setBenchmarkResult('fluid', `${id} (updateSize)`, `${updates.reduce((len, update) => len + JSON.stringify(update).length, 0)} bytes`)
   const docSize = await calculateContainerSize(objects[1].runtime.dataStoreContext._containerRuntime)
 
   setBenchmarkResult('fluid', `${id} (docSize)`, `${docSize} bytes`)

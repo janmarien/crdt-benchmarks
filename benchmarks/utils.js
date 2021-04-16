@@ -10,11 +10,13 @@ import { TelemetryNullLogger } from '@fluidframework/common-utils'
 
 
 export const N = 6000
-export const multiN = 500
-export const disableAutomergeBenchmarks = true
-export const disablePeersCrdtsBenchmarks = true
-export const disableYjsBenchmarks = true
+export const multiN = 250
+export const disableAutomergeBenchmarks = false
+export const disablePeersCrdtsBenchmarks = false
+export const disableYjsBenchmarks = false
 export const disableFluidBenchmarks = false
+const USE_TINYLICIOUS = false;
+
 
 export const benchmarkResults = {}
 
@@ -99,7 +101,6 @@ export const deltaDeleteHelper = (doc, index, length) => {
   return deltas
 }
 
-const USE_TINYLICIOUS = false;
 let containers = [];
 
 export const cleanContainers = async () => {
@@ -223,7 +224,7 @@ export const getNContainers = async (sharedObjectFactory) => {
   const sharedObject1 = await fluidObject.getSharedObject(objectID)
   container1.deltaManager.setMaxListeners(100000)
   objects.push(sharedObject1)
-  for (let i = 0; i < multiN; i++) {
+  for (let i = 1; i < multiN; i++) {
     const loader2 = await testObjectProvider.makeTestLoader(testContainerConfig)
     const url = await testObjectProvider.driver.createContainerUrl(testObjectProvider.documentId)
     const container2 = await loader2.resolve({ url: url })
